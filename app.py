@@ -565,13 +565,13 @@ class Avatar:
             while video_count < expected_videos:
                 try:
                     # 设置超时时间，防止无限等待
-                    video_path = self.video_queue.get(timeout=wait_time*2)
+                    video_path = self.video_queue.get()
                     video_count += 1
                     print(f"预期生成约 {expected_videos} 个视频, 当前生成第 {video_count} 个视频")
                     # 播放视频
                     yield text, updated_chatbot, video_path, f'播放视频{video_path}'
                     # 等待足够时间让前端播放视频
-                    time.sleep(wait_time)
+                    time.sleep(wait_time*1.1)
 
                 except queue.Empty:
                     print("等待视频生成超时...")
@@ -597,13 +597,13 @@ class Avatar:
                 os.remove(temp_output_path)
                 print(f"删除临时视频: {temp_output_path}")
             
-            # 删除所有临时更新视频
-            for temp_file in glob.glob(f"{avatar.avatar_path}/update_*.mp4"):
-                try:
-                    os.remove(temp_file)
-                    print(f"删除临时更新视频: {temp_file}")
-                except Exception as e:
-                    print(f"删除文件失败: {temp_file}, 错误: {e}")
+            # # 删除所有临时更新视频
+            # for temp_file in glob.glob(f"{avatar.avatar_path}/update_*.mp4"):
+            #     try:
+            #         os.remove(temp_file)
+            #         print(f"删除临时更新视频: {temp_file}")
+            #     except Exception as e:
+            #         print(f"删除文件失败: {temp_file}, 错误: {e}")
             
         else:
             error_msg = "生成的回复文本为空"
@@ -633,6 +633,32 @@ def check_video(video_path):
     return video_path
 
 
+from rag.law_data_process import law_query
+
+
+def get_prompt(query_str):
+    global role
+    prompt = ""
+    if role == "无":
+        prompt = "请用简洁明了的语言回答用户的问题"
+    elif role == "程序员":
+        prompt = "你是一个程序员,请用简洁明了的语言回答用户的问题"
+    elif role == "律师":
+        existing_answer = law_query(query_str)
+        prompt =  '''
+        你是一个律师现在你需要根据用户问题做出法律上的解答
+        原始查询如下：{query_str}
+        我们提供了现有答案：{existing_answer}
+        我们有机会通过下面的更多上下文来完善现有答案（仅在需要时）。
+        考虑到新的上下文，优化原始答案以更好地回答查询。 如果上下文没有用，请返回原始答案。
+        Refined Answer:'''
+    elif role == "医生":
+        prompt = "你是一个医生,请用简洁明了的语言回答用户的问题"
+    elif role == "厨师":
+        prompt = "你是一个厨师,请用简洁明了的语言回答用户的问题"
+    return prompt
+
+
 def process_text_with_openai(text, api_key):
     """使用OpenAI处理文本输入，生成回复"""
     try:
@@ -642,6 +668,8 @@ def process_text_with_openai(text, api_key):
         if not key_to_use:
             return "请提供有效的API密钥"
         
+
+        ##########构造prompt####################333
         # 创建消息列表，首先添加system消息
         messages = [{"role": "system", "content": "在30字以内尽可能简洁回答用户的问题"}]
         
@@ -692,11 +720,11 @@ if __name__ == "__main__":
     parser.add_argument("--ffmpeg_path", type=str, default="/usr/bin/ffmpeg", help="Path to ffmpeg executable")
     parser.add_argument("--gpu_id", type=int, default=0, help="GPU ID to use")
     parser.add_argument("--vae_type", type=str, default="sd-vae", help="Type of VAE model")
-    parser.add_argument("--unet_config", type=str, default="./models/musetalk/musetalk.json",
+    parser.add_argument("--unet_config", type=str, default="/root/autodl-tmp/models/musetalk/musetalk.json",
                         help="Path to UNet configuration file")
-    parser.add_argument("--unet_model_path", type=str, default="./models/musetalk/pytorch_model.bin",
+    parser.add_argument("--unet_model_path", type=str, default="/root/autodl-tmp/models/musetalk/pytorch_model.bin",
                         help="Path to UNet model weights")
-    parser.add_argument("--whisper_dir", type=str, default="./models/whisper",
+    parser.add_argument("--whisper_dir", type=str, default="/root/autodl-tmp/models/whisper",
                         help="Directory containing Whisper model")
     parser.add_argument("--fps", type=int, default=25, help="Video frames per second")
     parser.add_argument("--audio_padding_length_left", type=int, default=2, help="Left padding length for audio")
@@ -729,7 +757,7 @@ if __name__ == "__main__":
         "女童声": 101016
     }
 
-    roles = ['程序员', '医生', '律师', '厨师']
+    roles = ['无', '程序员', '医生', '律师', '厨师']
     # 创建下拉框选项列表
     voice_role_choices = list(voice_roles.keys())
     # 定义默认语音角色
