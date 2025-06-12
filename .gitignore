@@ -16,4 +16,5 @@ ffplay*
 debug
 exp_out
 .gradio
-law.csv
+rag/data
+rag/db
